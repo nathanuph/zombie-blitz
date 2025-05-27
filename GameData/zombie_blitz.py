@@ -109,8 +109,13 @@ class Scene:
 
         self.assets = [] #holds the buttons that will appear on the scene
 
+        self.dynamic_assets_loader = None #used for scenes that change their assets dynamically
+
     #load in the assets of that scene 
     def load(self):
+        if self.dynamic_assets_loader: #if a loader function is defined
+            self.assets = self.dynamic_assets_loader() #regenerate assets
+
         screen.blit(self.background, (0,0))
 
         for asset in self.assets:
@@ -149,6 +154,30 @@ def equip(new_weapon):
     player.weapon = new_weapon
     print(player.weapon.name+"EQUIPPED")
     load_inventory_assets() #reloads the screen so colors update
+
+
+def get_pre_game_assets(): #dynamically gets the assets for the pregame
+    assets = [
+        Button((255,255,255), Vector(0,460), Vector(100,30), "<<<", go_back), #back button
+    
+        Images(player.sprite, (20,50), (175,175)), #the main characters sprite
+
+        Images("Sprites/coin.png", (250,75), (40,40)), #coin image
+        SceneText(str(player.coins), Vector(300,85), 30, (0,0,0)), #amount of coins the player has
+
+        Button((0,0,0), Vector(260,130), Vector(100,50), "STORE", open_store), #shop button
+        Button((0,0,0), Vector(260,190), Vector(150,50), "INVENTORY", open_inventory), #shop button
+
+        SceneText("Equipped:"+player.weapon.name, Vector(50,260), 30, (0,0,0)), #'equipped' 
+        Images(player.weapon.sprite, (50,270), (100,100)), #image of gun currently equipped
+
+        SceneText("Days: "+str(player.days_played), Vector(260,290), 30, (0,0,0)),
+        SceneText("Zombies killed: "+str(player.zombies_killed), Vector(260, 320), 30, (0,0,0)),
+
+        #button to 'enter the wasteland' start game
+        Button((0,0,0), Vector(220,400), Vector(300,100), None, None)
+    ]
+    return assets 
 
 #initialise pygame
 pygame.init()
@@ -200,6 +229,8 @@ player.inventory.append(ak47)
 scene_handler.update(main_menu)
 
 #generate assets for each menu
+pre_game.dynamic_assets_loader = get_pre_game_assets #assigns the dynamic loader for pregame
+
 main_menu.assets = [
     Button((0,0,0), Vector(260,180), Vector(200,50), "START", start_game), #start button
     Button((0,0,0), Vector(260,240), Vector(200,50), "SETTINGS", open_settings), #settings button
@@ -223,27 +254,6 @@ settings.assets = [
 
 help.assets = [
     Button((255,255,255), Vector(0,460), Vector(100,30), "<<<", go_back) #back button
-]
-
-pre_game.assets = [
-    Button((255,255,255), Vector(0,460), Vector(100,30), "<<<", go_back), #back button
-    
-    Images(player.sprite, (20,50), (175,175)), #the main characters sprite
-
-    Images("Sprites/coin.png", (250,75), (40,40)), #coin image
-    SceneText(str(player.coins), Vector(300,85), 30, (0,0,0)), #amount of coins the player has
-
-    Button((0,0,0), Vector(260,130), Vector(100,50), "STORE", open_store), #shop button
-    Button((0,0,0), Vector(260,190), Vector(150,50), "INVENTORY", open_inventory), #shop button
-
-    SceneText("Equipped: "+player.weapon.name, Vector(50,260), 25, (0,0,0)), #'equipped' 
-    Images(player.weapon.sprite, (50,270), (100,100)), #image of gun currently equipped
-
-    SceneText("Days: "+str(player.days_played), Vector(260,260), 30, (0,0,0)),
-    SceneText("Zombies killed: "+str(player.zombies_killed), Vector(260, 290), 30, (0,0,0)),
-
-    #button to 'enter the wasteland' start game
-    Button((0,0,0), Vector(220,400), Vector(300,100), None, None)
 ]
 
 store.assets = [
