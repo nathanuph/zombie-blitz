@@ -7,8 +7,7 @@ class Vector:
         self.y = y
     
     def add(self, other):
-        self.x += other.x
-        self.y += other.y
+        return Vector(self.x + other.x, self.y + other.y) #return a new vector thats the sum of the two
 
 #player class 
 class Player:
@@ -17,7 +16,7 @@ class Player:
         self.position = position
         self.weapon = None
         self.inventory = []
-        self.coins = 0
+        self.coins = 1000
         self.sprite = sprite
         self.days_played = 0
         self.zombies_killed = 0
@@ -67,7 +66,19 @@ class Images: #images that can be generated onto a scene
         self.position = position #the coordinates it will spawn at (given as a vector)
     
     def load(self):
-        screen.blit(self.image, self.position)
+        blit_destination_coordinates = None
+
+        if isinstance(self.position, Vector):
+            #if self.position is a Vector, get its x and y attributes for the tuple
+            blit_destination_coordinates = (self.position.x, self.position.y)
+        elif isinstance(self.position, tuple) and len(self.position) == 2:
+            #if it's already a tuple, assume it's (x,y)
+            #add a check to ensure its elements are numbers, just in case
+            if isinstance(self.position[0], (int, float)) and \
+               isinstance(self.position[1], (int, float)):
+                blit_destination_coordinates = self.position
+
+        screen.blit(self.image, blit_destination_coordinates)
 
 class SceneText: #text that can be generated onto a screen
     def __init__(self, text, position, size, color):
@@ -140,6 +151,7 @@ def open_credits(): #opens credits menu
     scene_handler.update(credits) 
 
 def open_inventory():
+    reload_inventory_assets()
     scene_handler.update(inventory)  
 
 def open_store():
@@ -154,6 +166,27 @@ def equip(new_weapon):
     player.weapon = new_weapon
     print(player.weapon.name+"EQUIPPED")
     load_inventory_assets() #reloads the screen so colors update
+
+def purchase(weapon_to_buy):
+    #double check user can make the purchase
+    if weapon_to_buy in player.inventory:
+        print(f"INFO: You already own {weapon_to_buy.name}.")
+        return #exit if already owned
+
+    if player.coins >= weapon_to_buy.cost:
+        player.inventory.append(weapon_to_buy)
+        player.coins -= weapon_to_buy.cost
+        print(f"Purchased: {weapon_to_buy.name} for {weapon_to_buy.cost} coins.")
+        print(f"Remaining coins: {player.coins}")
+
+        #reload the scene to update that its now sold out
+        if scene_handler.current == store:
+            scene_handler.load() 
+        else:
+            #this case should ideally not happen if purchase is only from store scene
+            print("DEBUG: Purchase occurred, but not on the store scene?")
+    else:
+        print(f"INFO: Not enough coins to purchase {weapon_to_buy.name}.")
 
 
 def get_pre_game_assets(): #dynamically gets the assets for the pregame
@@ -178,6 +211,98 @@ def get_pre_game_assets(): #dynamically gets the assets for the pregame
         Button((0,0,0), Vector(220,400), Vector(300,100), None, None)
     ]
     return assets 
+
+def get_store_assets(current_player,available_weapons):
+    assets = [
+        Button((255,255,255), Vector(0,460), Vector(100,30), "<<<", go_back), # Back button
+
+        SceneText("Your coins: "+str(player.coins), Vector(30,400), 30, (255,255,255))
+    ]
+
+    #define details for each item slot in the store.
+    #this links a weapon to a specific position and button size.
+    #the weapon objects (ak47, rocket_launcher, etc.) are used directly.
+    slot_details = [
+        {"weapon": ak47, "base_pos": Vector(50,200), "button_size": Vector(175,75)},
+        {"weapon": rocket_launcher, "base_pos": Vector(280,200), "button_size": Vector(175,75)},
+        {"weapon": sniper, "base_pos": Vector(50,300), "button_size": Vector(175,75)},
+        {"weapon": shotgun, "base_pos": Vector(280,300), "button_size": Vector(175,75)},
+        {"weapon": dynamite, "base_pos": Vector(310,400), "button_size": Vector(110,75)}
+    ]
+
+    for detail in slot_details:
+        weapon_to_display = detail["weapon"]
+        base_pos = detail["base_pos"]  # Top-left corner of the slot
+        button_size = detail["button_size"]
+
+        #create the clickable button areas
+        #this button will be an invisible clickable area if text is ""
+        #the on_click action is defined based on whether the item is owned.
+        purchase_action = None
+        if not current_player.inventory.__contains__(weapon_to_display):
+            #use a helper to ensure 'weapon_to_display' is captured correctly in the lambda
+            def create_action(weapon):
+                return lambda: purchase(weapon)
+            purchase_action = create_action(weapon_to_display)
+        else:
+            purchase_action = lambda: None #do nothing if already owned / sold out
+
+        assets.append(
+            Button(
+                (255,255,255),    #button color
+                base_pos,       #position of the button
+                button_size,    #size of the button
+                "",             #button text (empty, as visuals are separate)
+                purchase_action #action on click
+            )
+        )
+
+        #visuals for the Slot (Image, Name, Cost/Sold Out)
+        #positions are relative to base_pos.
+        #create new vectors for each position to avoid issues if Vector.add is in-place.
+        image_display_pos = Vector(base_pos.x + 5, base_pos.y + 7)  #offset within the button area
+        text_name_pos = Vector(base_pos.x + 80, base_pos.y + 15)     #[osition for weapon name
+        text_info_pos = Vector(base_pos.x + 80, base_pos.y + 40)     #position for cost or "Owned"
+        item_image_size = (70, 60)                                #standard size for weapon images
+
+        if current_player.inventory.__contains__(weapon_to_display):
+            #item is owned: display "sold out" image and "Owned" text
+            assets.append(Images("Sprites/sold out.png", (image_display_pos), (item_image_size)))
+            assets.append(SceneText(weapon_to_display.name, text_name_pos, 20, (120,120,120))) #greyed out name
+            assets.append(SceneText("Owned", text_info_pos, 20, (120,120,120)))
+        else:
+            #item is available: display weapon sprite, name, and cost
+            assets.append(Images(weapon_to_display.sprite, (image_display_pos), (item_image_size)))
+            assets.append(SceneText(weapon_to_display.name, text_name_pos, 20, (0,0,0)))
+            assets.append(SceneText(f"Cost: {weapon_to_display.cost}", text_info_pos, 20, (0,0,0)))
+
+    return assets
+
+def reload_inventory_assets(): #neccessary to get the inventoy to auto reload to display the users updates inventory after buying a weapon
+    #this function builds the asset list and assigns it directly to the global 'inventory' scene's asset list.
+    new_assets_list = []
+
+    #add the static back button
+    new_assets_list.append(Button((255,255,255), Vector(0,460), Vector(100,30), "<<<", go_back))
+
+    #add dynamic item buttons
+    y_position = 50
+    for item in player.inventory:
+        color = (255,255,255)  #default color: white
+        if item == player.weapon: #check if the item is the one currently equipped
+            color = (50,205,50)  #green if equipped
+        
+        #helper to ensure 'item' is correctly captured in the lambda for each button
+        def create_equip_action(weapon_to_equip):
+            return lambda: equip(weapon_to_equip)
+
+        new_assets_list.append(
+            Button(color, Vector(150, y_position), Vector(200, 40), item.name, create_equip_action(item))
+        )
+        y_position += 50
+    
+    #directly update the assets of the inventory scene instance
+    inventory.assets = new_assets_list
 
 #initialise pygame
 pygame.init()
@@ -211,25 +336,26 @@ player = Player(None, "Sprites/player.png")
 
 #generate weapons
 pistol = Weapon("Pistol", 1, None, "Sprites/weapons/pistol.png", None)
-sniper = Weapon("Sniper", 1, None, "Sprites/weapons/sniper.png", None)
-ak47 = Weapon("AK47", 5, None, "Sprites/weapons/ak47.png", None)
-rocket_launcher = Weapon("Rocket Launcher", 10, None, "Sprites/weapons/rocket launcher.png", None)
-shotgun = Weapon("Shotgun", 3, None, "Sprites/weapons/shotgun.png", None)
+sniper = Weapon("Sniper", 1, None, "Sprites/weapons/sniper.png", 150)
+ak47 = Weapon("AK47", 5, None, "Sprites/weapons/ak47.png", 300)
+rocket_launcher = Weapon("Rocket Launcher", 10, None, "Sprites/weapons/rocket launcher.png", 250)
+shotgun = Weapon("Shotgun", 3, None, "Sprites/weapons/shotgun.png", 100)
+dynamite = Weapon("Dynamite", 10, None, "Sprites/weapons/dynamite.png", 100)
+
+#used to pass in the dynamic loader for the store
+weapons_for_sale = [ak47,sniper,rocket_launcher,shotgun,dynamite]
 
 #equip default weapon
 player.weapon = pistol
 player.inventory.append(pistol)
-player.inventory.append(sniper)
-player.inventory.append(shotgun)
-player.inventory.append(rocket_launcher)
-player.inventory.append(ak47)
-
 
 #instantiate scene handler
 scene_handler.update(main_menu)
 
 #generate assets for each menu
 pre_game.dynamic_assets_loader = get_pre_game_assets #assigns the dynamic loader for pregame
+store.dynamic_assets_loader = lambda: get_store_assets(player, weapons_for_sale) #assigns the dynamic loader for store
+
 
 main_menu.assets = [
     Button((0,0,0), Vector(260,180), Vector(200,50), "START", start_game), #start button
@@ -254,10 +380,6 @@ settings.assets = [
 
 help.assets = [
     Button((255,255,255), Vector(0,460), Vector(100,30), "<<<", go_back) #back button
-]
-
-store.assets = [
-    Button((255,255,255), Vector(0,460), Vector(100,30), "<<<", go_back), #back button
 ]
 
 inventory.assets = [
