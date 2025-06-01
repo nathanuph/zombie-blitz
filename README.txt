@@ -2,10 +2,9 @@
 ***ZOMBIE BLITZ***
 
 *
-I made this game as a personal project over summer break 2025.
-It's a topdown rogue-like zombie shooter - the zombies attack in 'rounds'
+This game is still unfinished.
+So far only menus are in place for testing purposes, the main bulk of the game is still in development.
 
-It was made using the pygame libaray
-Backgrounds and some assets like the games logo are AI generated using Google Gemini
-All programming and the pixel art sprites were created by me.
+It is a top down roguelike shooter.
+I created this project to challenge my python development knowledge and expand my skillset
 *
